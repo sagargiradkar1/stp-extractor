@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js Interactive BOM Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Left Panel - BOM Tree */
+        .bom-panel {
+            width: 400px;
+            background: white;
+            border-right: 2px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .bom-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .bom-header h1 {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        .bom-header .subtitle {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+
+        .bom-controls {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f9f9f9;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .bom-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .bom-item {
+            padding: 12px 15px;
+            margin: 5px 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .bom-item:hover {
+            background: #f0f7ff;
+            border-color: #4a90e2;
+            transform: translateX(5px);
+        }
+
+        .bom-item.selected {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            color: white;
+            border-color: #357abd;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
+        }
+
+        .bom-item .part-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+
+        .bom-item .part-details {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .bom-item .part-volume {
+            color: #666;
+            font-size: 0.8em;
+            margin-top: 3px;
+        }
+
+        .bom-item.selected .part-volume {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Right Panel - 3D Viewer */
+        .viewer-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f8f9fa;
+        }
+
+        .viewer-header {
+            background: white;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .viewer-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .viewer-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 8px 15px;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+
+        .control-btn:hover {
+            background: #357abd;
+        }
+
+        .control-btn.active {
+            background: #ff6b35;
+        }
+
+        #threejs-container {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .info-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 300px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+
+        .info-overlay.show {
+            opacity: 1;
+        }
+
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.2em;
+            z-index: 200;
+        }
+
+        .status-bar {
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            font-size: 0.9em;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Animation for highlighting */
+        @keyframes highlight-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .highlight-animation {
+            animation: highlight-pulse 0.6s ease-in-out;
+        }
+
+        .file-info {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel - BOM Tree -->
+        <div class="bom-panel">
+            <div class="bom-header">
+                <h1>📋 Bill of Materials</h1>
+                <div class="subtitle">Interactive Part Explorer</div>
+            </div>
+
+            <div class="bom-controls">
+                <input
+                    type="text"
+                    class="search-box"
+                    placeholder="🔍 Search parts..."
+                    id="searchBox"
+                />
+            </div>
+
+            <div class="bom-tree" id="bomTree">
+                <div class="loading-spinner">Loading BOM data...</div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Three.js Viewer -->
+        <div class="viewer-panel">
+            <div class="viewer-header">
+                <div class="viewer-title">🎯 Three.js Model Viewer</div>
+                <div class="viewer-controls">
+                    <button class="control-btn" onclick="resetCamera()">
+                        📹 Reset View
+                    </button>
+                    <button class="control-btn" id="wireframeBtn" onclick="toggleWireframe()">
+                        🔲 Wireframe
+                    </button>
+                    <button class="control-btn" id="boundingBoxBtn" onclick="toggleBoundingBoxes()">
+                        📦 Bounding Box
+                    </button>
+                    <button class="control-btn" onclick="toggleAutoRotate()">
+                        🔄 Auto Rotate
+                    </button>
+                </div>
+            </div>
+
+            <div id="threejs-container">
+                <div class="loading-spinner" id="loadingSpinner">Loading 3D model...</div>
+            </div>
+
+            <div class="info-overlay" id="infoOverlay">
+                <h3 id="selectedPartName">Select a part</h3>
+                <p id="selectedPartDetails">Click on a part in the BOM to see details</p>
+                <div id="selectedPartStats"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div>Status: <span id="statusText">Ready</span></div>
+        <div>
+            Parts: <span id="partCount">0</span> | Selected: <span id="selectedPart">None</span>
+        </div>
+    </div>
+
+    <!-- Three.js and dependencies -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        class ThreeJSBOMViewer {
+            constructor() {
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
+                this.model = null;
+                this.bomData = null;
+                this.selectedPartId = null;
+                this.selectedMeshIndex = null; // Track selected mesh index
+                this.isAutoRotating = false;
+                this.isWireframe = false;
+                this.showBoundingBoxes = false;
+                this.meshes = [];
+                this.boundingBoxHelpers = [];
+                this.originalMaterials = new Map();
+                this.highlightMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0xff6b35, 
+                    transparent: true, 
+                    opacity: 0.8 
+                });
+
+                // File paths for your extracted data
+                this.modelPaths = [
+                    'extracted_data/23159-2005/model.glb',
+                    'model.glb',
+                    'models/23159-2005.glb',
+                    'assets/model.glb'
+                ];
+
+                this.bomPaths = [
+                    'extracted_data/23159-2005/parts_data.json',
+                    'extracted_data/23159-2005/complete_stp_data.json',
+                    'parts_data.json',
+                    'bom_data.json'
+                ];
+
+                this.init();
+            }
+
+            async init() {
+                this.initThreeJS();
+                await this.loadBOMData();
+                await this.loadModel();
+                this.renderBOMTree();
+                this.setupEventListeners();
+                this.animate();
+                this.updateStatus("Three.js viewer loaded successfully");
+            }
+
+            initThreeJS() {
+                const container = document.getElementById('threejs-container');
+                
+                // Scene setup
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x2c3e50);
+
+                // Camera setup
+                this.camera = new THREE.PerspectiveCamera(
+                    75, 
+                    container.clientWidth / container.clientHeight, 
+                    0.1, 
+                    1000
+                );
+                this.camera.position.set(10, 10, 10);
+
+                // Renderer setup
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(container.clientWidth, container.clientHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+                container.appendChild(this.renderer.domElement);
+
+                // Controls setup
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+
+                // Enhanced lighting setup for better model visibility
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+                this.scene.add(ambientLight);
+
+                const directionalLight1 = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight1.position.set(10, 10, 5);
+                directionalLight1.castShadow = true;
+                this.scene.add(directionalLight1);
+
+                const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+                directionalLight2.position.set(-10, -10, -5);
+                this.scene.add(directionalLight2);
+
+                // Handle resize
+                window.addEventListener('resize', () => this.onWindowResize());
+            }
+
+            async loadModel() {
+                const loader = new GLTFLoader();
+                
+                // Try loading from multiple possible paths
+                for (const modelPath of this.modelPaths) {
+                    try {
+                        console.log(`Attempting to load model from: ${modelPath}`);
+                        
+                        const gltf = await new Promise((resolve, reject) => {
+                            loader.load(
+                                modelPath,
+                                resolve,
+                                (progress) => {
+                                    const percentComplete = (progress.loaded / progress.total) * 100;
+                                    this.updateStatus(`Loading model: ${percentComplete.toFixed(1)}%`);
+                                },
+                                reject
+                            );
+                        });
+
+                        console.log('✅ Successfully loaded model from:', modelPath);
+                        this.model = gltf.scene;
+                        
+                        // Process all meshes in the model
+                        this.processMeshes();
+                        
+                        // Center and scale the model
+                        this.centerModel();
+                        
+                        this.scene.add(this.model);
+                        document.getElementById('loadingSpinner').style.display = 'none';
+                        
+                        this.updateStatus(`Model loaded: ${this.meshes.length} parts found`);
+                        return; // Success, exit the loop
+                        
+                    } catch (error) {
+                        console.log(`Failed to load model from ${modelPath}:`, error.message);
+                        continue; // Try next path
+                    }
+                }
+                
+                // If all paths fail, create fallback
+                console.warn('Could not load model from any path, creating fallback');
+                this.updateStatus('Model file not found - showing demo shapes');
+                this.createFallbackModel();
+            }
+
+            processMeshes() {
+                this.meshes = [];
+                let meshIndex = 0;
+                
+                this.model.traverse((child) => {
+                    if (child.isMesh) {
+                        this.meshes.push(child);
+                        
+                        // Store original material
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                this.originalMaterials.set(child, child.material.map(mat => mat.clone()));
+                            } else {
+                                this.originalMaterials.set(child, child.material.clone());
+                            }
+                        }
+                        
+                        // Enable shadows
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        
+                        // FIXED: Add mesh data for proper identification
+                        child.userData.clickable = true;
+                        child.userData.meshIndex = meshIndex;
+                        child.userData.partName = child.name || `Part_${meshIndex + 1}`;
+                        child.userData.partId = `part_${String(meshIndex + 1).padStart(4, '0')}`; // Added partId
+                        
+                        meshIndex++;
+                    }
+                });
+                
+                console.log(`Found ${this.meshes.length} meshes in the model`);
+            }
+
+            centerModel() {
+                if (!this.model) return;
+                
+                const box = new THREE.Box3().setFromObject(this.model);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                // Center the model
+                this.model.position.sub(center);
+                
+                // Scale to fit in view (adjust scale factor as needed)
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim > 0) {
+                    const scale = 5 / maxDim; // Adjust this value to make model bigger/smaller
+                    this.model.scale.multiplyScalar(scale);
+                }
+                
+                // Adjust camera distance based on model size
+                const distance = maxDim > 0 ? maxDim * 2 : 20;
+                this.camera.position.set(distance, distance, distance);
+                this.controls.target.set(0, 0, 0);
+                this.controls.update();
+                
+                console.log(`Model centered. Size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+            }
+
+            createFallbackModel() {
+                // Create demo shapes to represent your automotive parts
+                const shapes = [
+                    { 
+                        geo: new THREE.BoxGeometry(2, 0.5, 3), 
+                        pos: [0, 0, 0], 
+                        color: 0x808080, 
+                        name: "Main Body"
+                    },
+                    { 
+                        geo: new THREE.CylinderGeometry(0.3, 0.3, 1), 
+                        pos: [1.5, 0, 1], 
+                        color: 0x404040, 
+                        name: "Cylinder Component"
+                    },
+                    { 
+                        geo: new THREE.BoxGeometry(0.8, 0.8, 0.3), 
+                        pos: [-1.2, 0.5, 0.5], 
+                        color: 0x606060, 
+                        name: "Mounting Bracket"
+                    },
+                    { 
+                        geo: new THREE.SphereGeometry(0.4), 
+                        pos: [0, 1, -1], 
+                        color: 0x707070, 
+                        name: "Spherical Part"
+                    }
+                ];
+
+                shapes.forEach((shape, i) => {
+                    const material = new THREE.MeshPhongMaterial({ color: shape.color });
+                    const mesh = new THREE.Mesh(shape.geo, material);
+                    mesh.position.set(...shape.pos);
+                    mesh.userData.clickable = true;
+                    mesh.userData.partName = shape.name;
+                    mesh.userData.meshIndex = i;
+                    mesh.userData.partId = `part_${String(i + 1).padStart(4, '0')}`;
+                    
+                    this.meshes.push(mesh);
+                    this.originalMaterials.set(mesh, material.clone());
+                    this.scene.add(mesh);
+                });
+                
+                document.getElementById('loadingSpinner').style.display = 'none';
+                this.updateStatus(`Demo model created: ${this.meshes.length} parts`);
+            }
+
+            async loadBOMData() {
+                // Try loading BOM data from multiple possible paths
+                for (const bomPath of this.bomPaths) {
+                    try {
+                        console.log(`Attempting to load BOM from: ${bomPath}`);
+                        const response = await fetch(bomPath);
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            // Handle different BOM data structures
+                            if (data.parts_list) {
+                                this.bomData = data;
+                            } else if (data.part_data && data.part_data.parts_list) {
+                                this.bomData = data.part_data;
+                            } else if (data.assembly_structure) {
+                                // Convert assembly structure to parts list
+                                this.bomData = this.convertAssemblyToParts(data);
+                            } else {
+                                this.bomData = data;
+                            }
+                            
+                            console.log('✅ BOM Data loaded successfully from:', bomPath);
+                            return;
+                        }
+                    } catch (error) {
+                        console.log(`Failed to load BOM from ${bomPath}:`, error.message);
+                        continue;
+                    }
+                }
+                
+                console.warn('Could not load BOM from any path, using demo data');
+                this.bomData = this.createDemoBOMData();
+            }
+
+            convertAssemblyToParts(data) {
+                // Convert your extracted assembly structure to parts list format
+                const parts_list = [];
+                
+                if (data.assembly_structure && data.assembly_structure.root_assemblies) {
+                    data.assembly_structure.root_assemblies.forEach((assembly, index) => {
+                        parts_list.push({
+                            part_id: `part_${String(index + 1).padStart(4, '0')}`,
+                            name: assembly.name || `Assembly_${index + 1}`,
+                            shape_analysis: assembly.shape_info || {},
+                            color_data: assembly.color_info || {},
+                            type: assembly.type || 'assembly'
+                        });
+                    });
+                }
+                
+                return {
+                    parts_list: parts_list,
+                    total_parts: parts_list.length
+                };
+            }
+
+            createDemoBOMData() {
+                // Create demo BOM that matches the number of meshes we have/will have
+                const parts_list = [];
+                const partNames = [
+                    "Main Body Assembly", "Cylinder Component", "Mounting Bracket", 
+                    "Spherical Part", "Cover Plate", "Support Structure"
+                ];
+                
+                for (let i = 0; i < Math.max(this.meshes.length, 4); i++) {
+                    parts_list.push({
+                        part_id: `part_${String(i + 1).padStart(4, '0')}`,
+                        name: partNames[i] || `Component_${i + 1}`,
+                        shape_analysis: {
+                            geometry_properties: { 
+                                volume: 1000 + (i * 250),
+                                surface_area: 500 + (i * 100)
+                            },
+                            topology: { 
+                                faces: 12 + (i * 8), 
+                                vertices: 8 + (i * 4) 
+                            }
+                        },
+                        color_data: {
+                            has_color: true,
+                            rgb: [0.5 + (i * 0.1), 0.5, 0.5]
+                        },
+                        type: 'part'
+                    });
+                }
+
+                return {
+                    parts_list: parts_list,
+                    total_parts: parts_list.length
+                };
+            }
+
+            renderBOMTree() {
+                const bomTree = document.getElementById('bomTree');
+                bomTree.innerHTML = '';
+
+                if (!this.bomData || !this.bomData.parts_list) {
+                    bomTree.innerHTML = '<div class="bom-item">No BOM data available</div>';
+                    return;
+                }
+
+                // Show file info
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'file-info';
+                fileInfo.innerHTML = `
+                    <strong>Model:</strong> ${this.model ? 'Loaded' : 'Demo'}<br>
+                    <strong>Total Parts:</strong> ${this.bomData.total_parts || this.bomData.parts_list.length}<br>
+                    <strong>Meshes Found:</strong> ${this.meshes.length}
+                `;
+                bomTree.appendChild(fileInfo);
+
+                document.getElementById('partCount').textContent = this.bomData.total_parts || this.bomData.parts_list.length;
+
+                this.bomData.parts_list.forEach((part, index) => {
+                    const bomItem = this.createBOMItem(part, index);
+                    bomTree.appendChild(bomItem);
+                });
+            }
+
+            createBOMItem(part, index) {
+                const item = document.createElement('div');
+                item.className = 'bom-item';
+                item.dataset.partId = part.part_id;
+                item.dataset.meshIndex = index; // ADDED: Store mesh index for lookup
+
+                const volume = part.shape_analysis?.geometry_properties?.volume || 'N/A';
+                const faces = part.shape_analysis?.topology?.faces || 'N/A';
+                const type = part.type || 'part';
+
+                item.innerHTML = `
+                    <div class="part-name">${part.name}</div>
+                    <div class="part-details">
+                        <span>ID: ${part.part_id}</span> | 
+                        <span>Type: ${type}</span> |
+                        <span>Mesh: ${index}</span>
+                    </div>
+                    <div class="part-volume">
+                        Volume: ${typeof volume === 'number' ? volume.toFixed(2) : volume} mm³ | 
+                        Faces: ${faces}
+                    </div>
+                `;
+
+                item.addEventListener('click', () => this.selectPart(part, index));
+                return item;
+            }
+
+            // MAIN FIX: Enhanced selectPart method with bidirectional highlighting
+            selectPart(part, meshIndex, fromMeshClick = false) {
+                console.log(`Selecting part: ${part.name}, mesh index: ${meshIndex}, from mesh click: ${fromMeshClick}`);
+                
+                // Store current selection
+                this.selectedPartId = part.part_id;
+                this.selectedMeshIndex = meshIndex;
+                
+                // Update BOM UI selection
+                this.updateBOMSelection(part.part_id);
+                
+                // Update 3D model highlighting
+                this.highlightMeshInScene(meshIndex);
+                
+                // Update info overlay
+                this.updateInfoOverlay(part);
+                
+                // Update status
+                document.getElementById('selectedPart').textContent = part.name;
+                this.updateStatus(`Selected: ${part.name} ${fromMeshClick ? '(from 3D click)' : '(from BOM click)'}`);
+                
+                // Scroll BOM item into view if selected from 3D model
+                if (fromMeshClick) {
+                    this.scrollBOMItemIntoView(part.part_id);
+                }
+            }
+
+            // NEW: Method to update BOM selection highlighting
+            updateBOMSelection(partId) {
+                // Clear all previous selections
+                document.querySelectorAll('.bom-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+
+                // Highlight selected item
+                const selectedItem = document.querySelector(`[data-part-id="${partId}"]`);
+                if (selectedItem) {
+                    selectedItem.classList.add('selected', 'highlight-animation');
+                    setTimeout(() => selectedItem.classList.remove('highlight-animation'), 600);
+                }
+            }
+
+            // NEW: Method to scroll BOM item into view
+            scrollBOMItemIntoView(partId) {
+                const selectedItem = document.querySelector(`[data-part-id="${partId}"]`);
+                if (selectedItem) {
+                    selectedItem.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                }
+            }
+
+            highlightMeshInScene(meshIndex) {
+                // Reset all materials
+                this.resetAllHighlights();
+                
+                // Highlight selected mesh
+                if (meshIndex < this.meshes.length) {
+                    const mesh = this.meshes[meshIndex];
+                    
+                    // Apply highlight material
+                    if (Array.isArray(mesh.material)) {
+                        mesh.material = mesh.material.map(() => this.highlightMaterial.clone());
+                    } else {
+                        mesh.material = this.highlightMaterial.clone();
+                    }
+                    
+                    // Focus camera on the mesh
+                    this.focusCameraOnMesh(mesh);
+                }
+            }
+
+            resetAllHighlights() {
+                this.meshes.forEach(mesh => {
+                    if (this.originalMaterials.has(mesh)) {
+                        const originalMaterial = this.originalMaterials.get(mesh);
+                        
+                        if (Array.isArray(originalMaterial)) {
+                            mesh.material = originalMaterial.map(mat => {
+                                const cloned = mat.clone();
+                                if (this.isWireframe) cloned.wireframe = true;
+                                return cloned;
+                            });
+                        } else {
+                            mesh.material = originalMaterial.clone();
+                            if (this.isWireframe) mesh.material.wireframe = true;
+                        }
+                    }
+                });
+            }
+
+            focusCameraOnMesh(mesh) {
+                const box = new THREE.Box3().setFromObject(mesh);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                // Smoothly move camera target to the selected mesh
+                this.controls.target.copy(center);
+                this.controls.update();
+                
+                console.log(`Focused on mesh: ${mesh.userData.partName}`);
+            }
+
+            updateInfoOverlay(part) {
+                const overlay = document.getElementById('infoOverlay');
+                const partName = document.getElementById('selectedPartName');
+                const partDetails = document.getElementById('selectedPartDetails');
+                const partStats = document.getElementById('selectedPartStats');
+
+                partName.textContent = part.name;
+                partDetails.textContent = `Part ID: ${part.part_id} | Type: ${part.type || 'part'}`;
+
+                const volume = part.shape_analysis?.geometry_properties?.volume;
+                const surface_area = part.shape_analysis?.geometry_properties?.surface_area;
+                const topology = part.shape_analysis?.topology;
+                const hasColor = part.color_data?.has_color;
+
+                partStats.innerHTML = `
+                    <strong>Properties:</strong><br>
+                    Volume: ${volume ? volume.toFixed(2) + ' mm³' : 'N/A'}<br>
+                    Surface Area: ${surface_area ? surface_area.toFixed(2) + ' mm²' : 'N/A'}<br>
+                    ${topology ? `Faces: ${topology.faces || 'N/A'}<br>Vertices: ${topology.vertices || 'N/A'}<br>` : ''}
+                    Color: ${hasColor ? 'Yes' : 'No'}
+                `;
+
+                overlay.classList.add('show');
+            }
+
+            toggleWireframe() {
+                this.isWireframe = !this.isWireframe;
+                const btn = document.getElementById('wireframeBtn');
+                
+                this.meshes.forEach(mesh => {
+                    if (Array.isArray(mesh.material)) {
+                        mesh.material.forEach(mat => {
+                            mat.wireframe = this.isWireframe;
+                        });
+                    } else {
+                        mesh.material.wireframe = this.isWireframe;
+                    }
+                });
+                
+                btn.classList.toggle('active', this.isWireframe);
+                this.updateStatus(`Wireframe ${this.isWireframe ? 'enabled' : 'disabled'}`);
+            }
+
+            toggleBoundingBoxes() {
+                this.showBoundingBoxes = !this.showBoundingBoxes;
+                const btn = document.getElementById('boundingBoxBtn');
+                
+                if (this.showBoundingBoxes) {
+                    this.createBoundingBoxes();
+                } else {
+                    this.removeBoundingBoxes();
+                }
+                
+                btn.classList.toggle('active', this.showBoundingBoxes);
+                this.updateStatus(`Bounding boxes ${this.showBoundingBoxes ? 'enabled' : 'disabled'}`);
+            }
+
+            createBoundingBoxes() {
+                this.meshes.forEach((mesh, index) => {
+                    const helper = new THREE.BoxHelper(mesh, 0xffff00);
+                    helper.userData.meshIndex = index;
+                    this.boundingBoxHelpers.push(helper);
+                    this.scene.add(helper);
+                });
+            }
+
+            removeBoundingBoxes() {
+                this.boundingBoxHelpers.forEach(helper => {
+                    this.scene.remove(helper);
+                });
+                this.boundingBoxHelpers = [];
+            }
+
+            resetCamera() {
+                if (this.model) {
+                    this.centerModel();
+                } else {
+                    this.camera.position.set(10, 10, 10);
+                    this.controls.target.set(0, 0, 0);
+                }
+                this.controls.update();
+                this.updateStatus('Camera reset');
+            }
+
+            toggleAutoRotate() {
+                this.isAutoRotating = !this.isAutoRotating;
+                this.controls.autoRotate = this.isAutoRotating;
+                this.controls.autoRotateSpeed = 1.0;
+                this.updateStatus(`Auto-rotate ${this.isAutoRotating ? 'enabled' : 'disabled'}`);
+            }
+
+            setupEventListeners() {
+                // Search functionality
+                const searchBox = document.getElementById('searchBox');
+                searchBox.addEventListener('input', (e) => this.filterParts(e.target.value));
+
+                // ENHANCED: Click detection for mesh selection with improved debugging
+                this.renderer.domElement.addEventListener('click', (event) => this.onMouseClick(event));
+            }
+
+            // MAIN FIX: Enhanced onMouseClick with proper BOM highlighting
+            onMouseClick(event) {
+                // Prevent click during camera controls interaction
+                if (this.controls.getDistance && this.controls.getDistance() !== this.controls.getDistance()) {
+                    return; // Camera is moving, ignore click
+                }
+
+                const mouse = new THREE.Vector2();
+                const rect = this.renderer.domElement.getBoundingClientRect();
+                
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, this.camera);
+                
+                // ENHANCED: Better intersection detection
+                const intersects = raycaster.intersectObjects(this.meshes, false);
+                
+                console.log(`Click detected. Found ${intersects.length} intersections`);
+                
+                if (intersects.length > 0) {
+                    const clickedMesh = intersects[0].object;
+                    const meshIndex = clickedMesh.userData.meshIndex;
+                    
+                    console.log(`Clicked mesh index: ${meshIndex}, part name: ${clickedMesh.userData.partName}`);
+                    
+                    // Find corresponding BOM data
+                    if (meshIndex !== undefined && this.bomData.parts_list[meshIndex]) {
+                        const part = this.bomData.parts_list[meshIndex];
+                        console.log(`Found BOM data for mesh: ${part.name}`);
+                        
+                        // FIXED: Call selectPart with fromMeshClick=true
+                        this.selectPart(part, meshIndex, true);
+                    } else {
+                        console.warn(`No BOM data found for mesh index: ${meshIndex}`);
+                        
+                        // Fallback: create temporary part data for mesh without BOM data
+                        const tempPart = {
+                            part_id: clickedMesh.userData.partId || `temp_part_${meshIndex}`,
+                            name: clickedMesh.userData.partName || `Mesh_${meshIndex}`,
+                            shape_analysis: {
+                                geometry_properties: { volume: 0 },
+                                topology: { faces: 0, vertices: 0 }
+                            },
+                            color_data: { has_color: false },
+                            type: 'mesh'
+                        };
+                        
+                        this.selectPart(tempPart, meshIndex, true);
+                    }
+                } else {
+                    console.log('No mesh intersection detected');
+                }
+            }
+
+            filterParts(searchTerm) {
+                const items = document.querySelectorAll('.bom-item');
+                searchTerm = searchTerm.toLowerCase();
+
+                items.forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    item.style.display = text.includes(searchTerm) ? 'block' : 'none';
+                });
+            }
+
+            updateStatus(message) {
+                document.getElementById('statusText').textContent = message;
+                console.log('Status:', message);
+            }
+
+            onWindowResize() {
+                const container = document.getElementById('threejs-container');
+                this.camera.aspect = container.clientWidth / container.clientHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                this.controls.update();
+                
+                if (this.showBoundingBoxes) {
+                    this.boundingBoxHelpers.forEach(helper => helper.update());
+                }
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // Global functions
+        window.resetCamera = () => window.bomViewer?.resetCamera();
+        window.toggleWireframe = () => window.bomViewer?.toggleWireframe();
+        window.toggleBoundingBoxes = () => window.bomViewer?.toggleBoundingBoxes();
+        window.toggleAutoRotate = () => window.bomViewer?.toggleAutoRotate();
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.bomViewer = new ThreeJSBOMViewer();
+        });
+    </script>
+</body>
+</html>
