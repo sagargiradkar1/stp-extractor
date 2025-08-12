@@ -164,12 +164,12 @@
         #threejs-container {
             flex: 1;
             position: relative;
-            background: linear-gradient(135deg, #f2f3f4 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #f2f3f4 0%, #cdbcde 100%);
         }
 
         .info-overlay {
             position: absolute;
-            top: 20px;
+            top: 70px;
             right: 20px;
             background: rgba(255, 255, 255, 0.95);
             padding: 15px;
@@ -211,6 +211,7 @@
             font-size: 0.9em;
             display: flex;
             justify-content: space-between;
+            position: fixed;
         }
 
         /* Animation for highlighting */
@@ -256,10 +257,10 @@
             </div>
         </div>
 
-        <!-- Right Panel - Three.js Viewer -->
+        <!-- Right Panel -Viewer -->
         <div class="viewer-panel">
             <div class="viewer-header">
-                <div class="viewer-title">🎯 Three.js Model Viewer</div>
+                <div class="viewer-title">Model Viewer</div>
                 <div class="viewer-controls">
                     <button class="control-btn" onclick="resetCamera()">
                         📹 Reset View
@@ -365,7 +366,7 @@
                 
                 // Scene setup
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x2c3e50);
+                this.scene.background = new THREE.Color(0xE8F4F8);
 
                 // Camera setup
                 this.camera = new THREE.PerspectiveCamera(
