@@ -10,7 +10,7 @@ BLENDER_CMD = r"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
 GLTF_TRANSFORM_PATH = r"C:\Users\sagarg_ithena\AppData\Roaming\npm\gltf-transform.cmd"
 
 # Input STEP file
-input_step = "model/23159-2005.stp"
+input_step = "model/75944_06.step"
 base_name = os.path.splitext(os.path.basename(input_step))[0]
 
 # Fixed BOM file path

@@ -14,7 +14,7 @@ def main():
     output_dir.mkdir(exist_ok=True)
     
     # Find STP files
-    stp_files = list(input_dir.glob("*.stp")) + list(input_dir.glob("*.step"))
+    stp_files = list(input_dir.glob("*.step"))
     
     if not stp_files:
         print("❌ No STP files found in 'model' folder")
