@@ -164,7 +164,7 @@
         #threejs-container {
             flex: 1;
             position: relative;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #f2f3f4 0%, #764ba2 100%);
         }
 
         .info-overlay {
@@ -188,13 +188,22 @@
         .loading-spinner {
             position: absolute;
             top: 50%;
+            left: 10%;
+            transform: translate(-50%, -50%);
+            color: rgb(0, 0, 0);
+            font-size: 1.2em;
+            z-index: 200;
+        }
+
+        .loading-spinner1 {
+            position: absolute;
+            top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
             font-size: 1.2em;
             z-index: 200;
         }
-
         .status-bar {
             background: #333;
             color: white;
@@ -268,7 +277,7 @@
             </div>
 
             <div id="threejs-container">
-                <div class="loading-spinner" id="loadingSpinner">Loading 3D model...</div>
+                <div class="loading-spinner1" id="loadingSpinner">Loading 3D model...</div>
             </div>
 
             <div class="info-overlay" id="infoOverlay">
